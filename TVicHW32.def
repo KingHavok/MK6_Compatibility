@@ -1,0 +1,12 @@
+LIBRARY TVicHW32
+EXPORTS
+    Shim_OpenTVicHW32       @1  NONAME
+    Shim_CloseTVicHW32      @2  NONAME
+    Shim_GetActiveHW        @3  NONAME
+    Shim_GetPortByte        @12 NONAME
+    Shim_SetPortByte        @13 NONAME
+    Shim_GetPortWord        @14 NONAME
+    Shim_SetPortWord        @15 NONAME
+    Shim_GetPortLong        @16 NONAME
+    Shim_SetPortLong        @17 NONAME
+    Shim_MapPhysToLinear    @30 NONAME
