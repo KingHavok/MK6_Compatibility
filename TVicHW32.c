@@ -7,9 +7,7 @@
  */
 #include <windows.h>
 #include <string.h>
-
 static HINSTANCE g_hInst;
-
 /* ================================================================
  * Version spoofing - report Windows 2000 SP4 (5.0.2195)
  * ================================================================ */
@@ -17,7 +15,6 @@ static DWORD WINAPI Fake_GetVersion(void)
 {
     return (DWORD)0x08930005;
 }
-
 static BOOL WINAPI Fake_GetVersionExA(LPOSVERSIONINFOA lpvi)
 {
     if (!lpvi)
@@ -48,7 +45,6 @@ static BOOL WINAPI Fake_GetVersionExA(LPOSVERSIONINFOA lpvi)
     }
     return FALSE;
 }
-
 /* ================================================================
  * IAT patching
  * ================================================================ */
@@ -60,7 +56,6 @@ static void PatchModuleIAT(HMODULE hMod)
     DWORD importRVA;
     HMODULE hK32;
     FARPROC pfnGetVersion, pfnGetVersionExA;
-
     if (!hMod)
         return;
     pDos = (PIMAGE_DOS_HEADER)hMod;
@@ -103,7 +98,6 @@ static void PatchModuleIAT(HMODULE hMod)
         pImp++;
     }
 }
-
 /* ================================================================
  * TVicHW32 stub exports (unchanged)
  * ================================================================ */
@@ -112,30 +106,20 @@ DWORD __stdcall Shim_OpenTVicHW32(HWND hWnd, const char *szService, const char *
     (void)hWnd; (void)szService; (void)szDisplay;
     return 0x12345678;
 }
-
 void __stdcall Shim_CloseTVicHW32(void) {}
-
 DWORD __stdcall Shim_GetActiveHW(void) { return 0x12345678; }
-
 BYTE __stdcall Shim_GetPortByte(WORD wPort) { (void)wPort; return 0; }
-
 void __stdcall Shim_SetPortByte(WORD wPort, BYTE bValue) { (void)wPort; (void)bValue; }
-
 WORD __stdcall Shim_GetPortWord(WORD wPort) { (void)wPort; return 0; }
-
 void __stdcall Shim_SetPortWord(WORD wPort, WORD wValue) { (void)wPort; (void)wValue; }
-
 DWORD __stdcall Shim_GetPortLong(WORD wPort) { (void)wPort; return 0; }
-
 void __stdcall Shim_SetPortLong(WORD wPort, DWORD dwValue) { (void)wPort; (void)dwValue; }
-
 LPVOID __stdcall Shim_MapPhysToLinear(DWORD dwPhysAddr, DWORD dwSize)
 {
     (void)dwPhysAddr;
     if (dwSize == 0) dwSize = 4096;
     return VirtualAlloc(NULL, dwSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 }
-
 /* ================================================================
  * Keyboard remapping (replaces KEYBOARDCONNECTOR.exe)
  *
@@ -155,33 +139,24 @@ LPVOID __stdcall Shim_MapPhysToLinear(DWORD dwPhysAddr, DWORD dwSize)
  * When "Roms Screen 1" is foreground, native keys (1-8,
  * q-w-e-r-t-y-u-i, Space, F4) are forwarded to MK6 Emulator.
  * ================================================================ */
-
 #define EMU_TITLE   "MK6 Emulator"
-#define ROMS_TITLE  "Roms Screen 1"
-
 static HHOOK  g_hKeyHook;
 static HANDLE g_hHookThread;
 static DWORD  g_dwHookThreadId;
-
 /* Button HWND cache (1-based index, Button1..Button36) */
 static HWND g_hBtnCache[37];
 static HWND g_hEmuCached;
 static BOOL g_bBtnCacheValid;
-
 static void RefreshButtonCache(HWND hEmu)
 {
     HWND hChild;
     int n = 0;
-
     if (g_bBtnCacheValid && g_hEmuCached == hEmu && IsWindow(hEmu))
         return;
-
     ZeroMemory(g_hBtnCache, sizeof(g_hBtnCache));
     g_hEmuCached = hEmu;
     g_bBtnCacheValid = FALSE;
-
     if (!hEmu) return;
-
     hChild = FindWindowExA(hEmu, NULL, "Button", NULL);
     while (hChild && n < 36) {
         g_hBtnCache[++n] = hChild;
@@ -189,14 +164,12 @@ static void RefreshButtonCache(HWND hEmu)
     }
     g_bBtnCacheValid = (n > 0);
 }
-
 static void ClickEmuButton(HWND hEmu, int num)
 {
     RefreshButtonCache(hEmu);
     if (num >= 1 && num <= 36 && g_hBtnCache[num])
         PostMessageA(g_hBtnCache[num], BM_CLICK, 0, 0);
 }
-
 static void SendKeyToEmu(HWND hEmu, UINT vk, char ch)
 {
     PostMessageA(hEmu, WM_KEYDOWN, vk, 0x00000001);
@@ -204,24 +177,19 @@ static void SendKeyToEmu(HWND hEmu, UINT vk, char ch)
         PostMessageA(hEmu, WM_CHAR, (WPARAM)ch, 0x00000001);
     PostMessageA(hEmu, WM_KEYUP, vk, 0xC0000001);
 }
-
 /* --- Payout combo: q → Button18 → Button18 --- */
 static volatile LONG g_payoutActive;
-
 static DWORD WINAPI PayoutThread(LPVOID lp)
 {
     HWND hEmu = (HWND)lp;
-
     SendKeyToEmu(hEmu, 'Q', 'q');
     Sleep(150);
     ClickEmuButton(hEmu, 18);
     Sleep(150);
     ClickEmuButton(hEmu, 18);
-
     InterlockedExchange(&g_payoutActive, 0);
     return 0;
 }
-
 /* --- Fullscreen toggle: Alt+Enter + move cursor --- */
 static void ToggleFullscreen(void)
 {
@@ -236,7 +204,6 @@ static void ToggleFullscreen(void)
     SendInput(4, inp, sizeof(INPUT));
     SetCursorPos(0, 479);
 }
-
 /* --- Native key check --- */
 static BOOL IsNativeKey(DWORD vk)
 {
@@ -249,7 +216,6 @@ static BOOL IsNativeKey(DWORD vk)
     }
     return FALSE;
 }
-
 /* --- Non-native key → button number (0 = not mapped) --- */
 static int ButtonForKey(DWORD vk)
 {
@@ -263,36 +229,36 @@ static int ButtonForKey(DWORD vk)
     }
     return 0;
 }
-
 /* --- Low-level keyboard hook --- */
 static LRESULT CALLBACK KbHookProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     KBDLLHOOKSTRUCT *pk;
-    HWND hFg, hEmu, hRom;
+    HWND hFg, hEmu;
     BOOL emuFg, romFg;
+    char fgTitle[64];
     int  btn;
-
     if (nCode != HC_ACTION)
         goto pass;
-
     pk = (KBDLLHOOKSTRUCT *)lParam;
-
     /* Ignore our own synthetic keystrokes */
     if (pk->flags & LLKHF_INJECTED)
         goto pass;
-
     hFg  = GetForegroundWindow();
     hEmu = FindWindowA(NULL, EMU_TITLE);
-    hRom = FindWindowA(NULL, ROMS_TITLE);
-    emuFg = (hFg && hFg == hEmu);
-    romFg = (hFg && hFg == hRom);
-
+    if (!hFg || !hEmu)
+        goto pass;
+    emuFg = (hFg == hEmu);
+    /* Check foreground title prefix instead of exact FindWindow match */
+    romFg = FALSE;
+    if (!emuFg) {
+        GetWindowTextA(hFg, fgTitle, sizeof(fgTitle));
+        romFg = (strncmp(fgTitle, "Roms", 4) == 0 &&
+                 strstr(fgTitle, "Screen") != NULL);
+    }
     if (!emuFg && !romFg)
         goto pass;   /* Neither window active — don't hijack */
-
     /* === KEY DOWN === */
     if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
-
         /* g → payout combo */
         if (pk->vkCode == 'G' && hEmu) {
             if (InterlockedCompareExchange(&g_payoutActive, 1, 0) == 0) {
@@ -301,27 +267,23 @@ static LRESULT CALLBACK KbHookProc(int nCode, WPARAM wParam, LPARAM lParam)
             }
             return 1;
         }
-
         /* Escape → close emulator */
         if (pk->vkCode == VK_ESCAPE && hEmu) {
             PostMessageA(hEmu, WM_SYSCOMMAND, SC_CLOSE, 0);
             return 1;
         }
-
         /* Shift → fullscreen toggle */
         if (pk->vkCode == VK_LSHIFT || pk->vkCode == VK_RSHIFT ||
             pk->vkCode == VK_SHIFT) {
             ToggleFullscreen();
             return 1;
         }
-
         /* Non-native key → button click */
         btn = ButtonForKey(pk->vkCode);
         if (btn && hEmu) {
             ClickEmuButton(hEmu, btn);
             return 1;
         }
-
         /* Forward native keys from Roms Screen → Emulator */
         if (romFg && hEmu && IsNativeKey(pk->vkCode)) {
             char ch = 0;
@@ -336,54 +298,43 @@ static LRESULT CALLBACK KbHookProc(int nCode, WPARAM wParam, LPARAM lParam)
             return 1;
         }
     }
-
     /* === KEY UP — eat for keys we consumed on down === */
     if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
         DWORD vk = pk->vkCode;
-
         if (vk == 'G' || vk == VK_ESCAPE ||
             vk == VK_LSHIFT || vk == VK_RSHIFT || vk == VK_SHIFT)
             return 1;
-
         if (ButtonForKey(vk))
             return 1;
-
         if (romFg && IsNativeKey(vk))
             return 1;
     }
-
 pass:
     return CallNextHookEx(g_hKeyHook, nCode, wParam, lParam);
 }
-
 /* --- Hook thread (needs its own message pump for LL hooks) --- */
 static DWORD WINAPI KbHookThread(LPVOID lp)
 {
     MSG msg;
     (void)lp;
-
     g_hKeyHook = SetWindowsHookExA(WH_KEYBOARD_LL, KbHookProc,
                                     g_hInst, 0);
     if (!g_hKeyHook)
         return 1;
-
     while (GetMessageA(&msg, NULL, 0, 0) > 0) {
         TranslateMessage(&msg);
         DispatchMessageA(&msg);
     }
-
     UnhookWindowsHookEx(g_hKeyHook);
     g_hKeyHook = NULL;
     return 0;
 }
-
 /* ================================================================
  * DLL entry point
  * ================================================================ */
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
     (void)lpvReserved;
-
     if (fdwReason == DLL_PROCESS_ATTACH) {
         g_hInst = hinstDLL;
         DisableThreadLibraryCalls(hinstDLL);
