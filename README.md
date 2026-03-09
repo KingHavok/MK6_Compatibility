@@ -20,7 +20,7 @@ These keys are sent as keystrokes to the emulator window when a Roms Screen is i
 |-----|----------|
 | `1`-`8` | Top button row (Reserve/Gamble, Bet lines) |
 | `Q` `W` `E` `R` `T` `Y` `U` `I` | Bottom button row (Take Win, Play Reels, etc.) |
-| `Space` | Service / generic |
+| `Space` | Equivalent to 'Y' (Play largest number of lines) |
 | `F4` | Toggle panel visibility |
 
 ### Button clicks (sent as BM_CLICK to emulator child buttons)
