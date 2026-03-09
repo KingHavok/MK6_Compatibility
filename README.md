@@ -20,7 +20,7 @@ These keys are sent as keystrokes to the emulator window when a Roms Screen is i
 |-----|----------|
 | `1`-`8` | Top button row (Reserve/Gamble, Bet lines) |
 | `Q` `W` `E` `R` `T` `Y` `U` `I` | Bottom button row (Take Win, Play Reels, etc.) |
-| `Space` | Equivalent to 'Y' (Play largest number of lines) |
+| `Space` | Service / generic |
 | `F4` | Toggle panel visibility |
 
 ### Button clicks (sent as BM_CLICK to emulator child buttons)
@@ -38,7 +38,7 @@ These keys are sent as keystrokes to the emulator window when a Roms Screen is i
 
 | Key | Action |
 |-----|--------|
-| `G` | Credit payout combo: sends Take Win (`q`), then clicks Jackpot (Button18) twice |
+| `G` | Credit payout combo: finds the "Collect" / "Take Win" button by label (any position), clicks it, then clicks Jackpot (Button18) twice. Falls back to `q` key if no matching button is found. |
 | `Shift` | Toggle fullscreen (Alt+Enter) and move cursor off-screen |
 | `Escape` | Close emulator |
 
