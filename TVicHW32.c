@@ -177,12 +177,39 @@ static void SendKeyToEmu(HWND hEmu, UINT vk, char ch)
         PostMessageA(hEmu, WM_CHAR, (WPARAM)ch, 0x00000001);
     PostMessageA(hEmu, WM_KEYUP, vk, 0xC0000001);
 }
-/* --- Payout combo: q → Button18 → Button18 --- */
+/* --- Find a button whose text contains a keyword (case-insensitive) --- */
+static HWND FindButtonByKeyword(HWND hEmu, const char *keyword)
+{
+    HWND hChild = FindWindowExA(hEmu, NULL, "Button", NULL);
+    while (hChild) {
+        char txt[128];
+        if (GetWindowTextA(hChild, txt, sizeof(txt)) > 0) {
+            /* Case-insensitive substring search */
+            size_t tlen = strlen(txt), klen = strlen(keyword);
+            size_t i;
+            for (i = 0; i + klen <= tlen; i++) {
+                if (_strnicmp(txt + i, keyword, klen) == 0)
+                    return hChild;
+            }
+        }
+        hChild = FindWindowExA(hEmu, hChild, "Button", NULL);
+    }
+    return NULL;
+}
+/* --- Payout combo: TakeWin → Jackpot × 2 --- */
 static volatile LONG g_payoutActive;
 static DWORD WINAPI PayoutThread(LPVOID lp)
 {
     HWND hEmu = (HWND)lp;
-    SendKeyToEmu(hEmu, 'Q', 'q');
+    HWND hTakeWin;
+    /* Find the Take Win / Collect button by label text */
+    hTakeWin = FindButtonByKeyword(hEmu, "Collect");
+    if (!hTakeWin) hTakeWin = FindButtonByKeyword(hEmu, "Take Win");
+    if (!hTakeWin) hTakeWin = FindButtonByKeyword(hEmu, "Take win");
+    if (hTakeWin)
+        PostMessageA(hTakeWin, BM_CLICK, 0, 0);
+    else
+        SendKeyToEmu(hEmu, 'Q', 'q');   /* fallback: q key */
     Sleep(150);
     ClickEmuButton(hEmu, 18);
     Sleep(150);
