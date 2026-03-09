@@ -77,6 +77,12 @@ i686-w64-mingw32-gcc -shared -nostdlib -o TVicHW32.dll TVicHW32.c TVicHW32.def -
 cl /LD /O2 TVicHW32.c /link /DEF:TVicHW32.def /OUT:TVicHW32.dll /NODEFAULTLIB kernel32.lib user32.lib
 ```
 
+### Windows batch
+
+```bat
+build.bat
+```
+
 ## Installation
 
 1. Back up the original `TVicHW32.dll` in the MK6Emu directory.
