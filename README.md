@@ -68,19 +68,13 @@ A C compiler targeting 32-bit Windows (PE32). The EXE is a 32-bit application.
 ### MinGW (any platform)
 
 ```bash
-i686-w64-mingw32-gcc -shared -o TVicHW32.dll TVicHW32.c TVicHW32.def -lkernel32 -luser32 -O2 -Wl,--enable-stdcall-fixup
+i686-w64-mingw32-gcc -shared -nostdlib -o TVicHW32.dll TVicHW32.c TVicHW32.def -lkernel32 -luser32 -O2 -Wl,--enable-stdcall-fixup -Wl,-e,_DllMain@12
 ```
 
 ### MSVC (x86 Developer Command Prompt)
 
 ```bat
-cl /LD /O2 TVicHW32.c /link /DEF:TVicHW32.def /OUT:TVicHW32.dll
-```
-
-### Windows batch
-
-```bat
-build.bat
+cl /LD /O2 TVicHW32.c /link /DEF:TVicHW32.def /OUT:TVicHW32.dll /NODEFAULTLIB kernel32.lib user32.lib
 ```
 
 ## Installation
