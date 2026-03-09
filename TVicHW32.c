@@ -4,10 +4,57 @@
  * Replaces the real TVicHW32 hardware I/O driver with stubs,
  * patches version APIs to report Windows 2000, and provides
  * keyboard remapping (replaces KEYBOARDCONNECTOR.exe).
+ *
+ * Zero CRT dependency — only imports KERNEL32.dll and USER32.dll
+ * so it runs on Windows 7 through 11 with no redistributables.
  */
 #include <windows.h>
-#include <string.h>
 static HINSTANCE g_hInst;
+/* ================================================================
+ * Tiny CRT replacements (no libc dependency)
+ * The compiler may emit calls to memset/memcpy for struct zeroing
+ * and copies, so we must provide them.
+ * ================================================================ */
+void * __cdecl memset(void *dst, int c, size_t n)
+{
+    unsigned char *p = (unsigned char *)dst;
+    while (n--) *p++ = (unsigned char)c;
+    return dst;
+}
+void * __cdecl memcpy(void *dst, const void *src, size_t n)
+{
+    unsigned char *d = (unsigned char *)dst;
+    const unsigned char *s = (const unsigned char *)src;
+    while (n--) *d++ = *s++;
+    return dst;
+}
+/* Case-insensitive compare of two characters */
+static __inline char toLower(char c)
+{
+    return (c >= 'A' && c <= 'Z') ? (char)(c | 0x20) : c;
+}
+/* Case-insensitive substring search (replaces _strnicmp + strstr) */
+static BOOL ContainsI(const char *hay, const char *needle)
+{
+    int i, j;
+    if (!hay || !needle) return FALSE;
+    for (i = 0; hay[i]; i++) {
+        for (j = 0; needle[j]; j++) {
+            if (toLower(hay[i + j]) != toLower(needle[j]))
+                break;
+        }
+        if (!needle[j]) return TRUE;   /* full needle matched */
+    }
+    return FALSE;
+}
+/* Starts-with check (replaces strncmp) */
+static BOOL StartsWithA(const char *s, const char *prefix)
+{
+    while (*prefix) {
+        if (*s++ != *prefix++) return FALSE;
+    }
+    return TRUE;
+}
 /* ================================================================
  * Version spoofing - report Windows 2000 SP4 (5.0.2195)
  * ================================================================ */
@@ -73,7 +120,7 @@ static void PatchModuleIAT(HMODULE hMod)
     pImp = (PIMAGE_IMPORT_DESCRIPTOR)((BYTE *)hMod + importRVA);
     while (pImp->Name) {
         const char *dllName = (const char *)((BYTE *)hMod + pImp->Name);
-        if (_stricmp(dllName, "KERNEL32.dll") == 0) {
+        if (lstrcmpiA(dllName, "KERNEL32.dll") == 0) {
             PIMAGE_THUNK_DATA pThunk;
             pThunk = (PIMAGE_THUNK_DATA)((BYTE *)hMod + pImp->FirstThunk);
             while (pThunk->u1.Function) {
@@ -123,7 +170,7 @@ LPVOID __stdcall Shim_MapPhysToLinear(DWORD dwPhysAddr, DWORD dwSize)
 /* ================================================================
  * Keyboard remapping (replaces KEYBOARDCONNECTOR.exe)
  *
- * Active when "MK6 Emulator" or "Roms Screen 1" is foreground.
+ * Active when "MK6 Emulator" or any "Roms Screen" is foreground.
  *
  * Key map:
  *   CapsLock → Button17 (Audit)
@@ -132,11 +179,11 @@ LPVOID __stdcall Shim_MapPhysToLinear(DWORD dwPhysAddr, DWORD dwSize)
  *   s        → Button20 (Main-Opt)
  *   d        → Button21 (Main-Mec)
  *   Enter    → Button22 (Coins)
- *   g        → Payout combo (q, then Button18 x2)
+ *   g        → Payout combo (TakeWin/Collect + Jackpot x2)
  *   Escape   → Close app
  *   Shift    → Fullscreen toggle (Alt+Enter)
  *
- * When "Roms Screen 1" is foreground, native keys (1-8,
+ * When a "Roms Screen" window is foreground, native keys (1-8,
  * q-w-e-r-t-y-u-i, Space, F4) are forwarded to MK6 Emulator.
  * ================================================================ */
 #define EMU_TITLE   "MK6 Emulator"
@@ -184,19 +231,14 @@ static HWND FindButtonByKeyword(HWND hEmu, const char *keyword)
     while (hChild) {
         char txt[128];
         if (GetWindowTextA(hChild, txt, sizeof(txt)) > 0) {
-            /* Case-insensitive substring search */
-            size_t tlen = strlen(txt), klen = strlen(keyword);
-            size_t i;
-            for (i = 0; i + klen <= tlen; i++) {
-                if (_strnicmp(txt + i, keyword, klen) == 0)
-                    return hChild;
-            }
+            if (ContainsI(txt, keyword))
+                return hChild;
         }
         hChild = FindWindowExA(hEmu, hChild, "Button", NULL);
     }
     return NULL;
 }
-/* --- Payout combo: TakeWin → Jackpot × 2 --- */
+/* --- Payout combo: TakeWin/Collect → Jackpot × 2 --- */
 static volatile LONG g_payoutActive;
 static DWORD WINAPI PayoutThread(LPVOID lp)
 {
@@ -205,7 +247,6 @@ static DWORD WINAPI PayoutThread(LPVOID lp)
     /* Find the Take Win / Collect button by label text */
     hTakeWin = FindButtonByKeyword(hEmu, "Collect");
     if (!hTakeWin) hTakeWin = FindButtonByKeyword(hEmu, "Take Win");
-    if (!hTakeWin) hTakeWin = FindButtonByKeyword(hEmu, "Take win");
     if (hTakeWin)
         PostMessageA(hTakeWin, BM_CLICK, 0, 0);
     else
@@ -275,12 +316,11 @@ static LRESULT CALLBACK KbHookProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (!hFg || !hEmu)
         goto pass;
     emuFg = (hFg == hEmu);
-    /* Check foreground title prefix instead of exact FindWindow match */
+    /* Check foreground title for "Roms" + "Screen" (handles variable spacing) */
     romFg = FALSE;
     if (!emuFg) {
         GetWindowTextA(hFg, fgTitle, sizeof(fgTitle));
-        romFg = (strncmp(fgTitle, "Roms", 4) == 0 &&
-                 strstr(fgTitle, "Screen") != NULL);
+        romFg = (StartsWithA(fgTitle, "Roms") && ContainsI(fgTitle, "Screen"));
     }
     if (!emuFg && !romFg)
         goto pass;   /* Neither window active — don't hijack */
